@@ -70,6 +70,9 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <IncludePath>D:\CompilePrinciple\CompilationProj\CompilePP;$(IncludePath)</IncludePath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -128,15 +131,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\DigitalStructure\lexer.cpp" />
-    <ClCompile Include="..\..\..\DigitalStructure\main.cpp">
-      <LanguageStandard Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">stdcpp20</LanguageStandard>
-    </ClCompile>
-    <ClCompile Include="..\..\..\DigitalStructure\newVector.cpp" />
+    <ClCompile Include="astParser.cpp" />
+    <ClCompile Include="lexer.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="newVector.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\DigitalStructure\lexer.hpp" />
-    <ClInclude Include="..\..\..\DigitalStructure\newVector.hpp" />
+    <ClInclude Include="ast.hpp" />
+    <ClInclude Include="astParser.hpp" />
+    <ClInclude Include="lexer.hpp" />
+    <ClInclude Include="newVector.hpp" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="..\..\..\DigitalStructure\test.txt" />

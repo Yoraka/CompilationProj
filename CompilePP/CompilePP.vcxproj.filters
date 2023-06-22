@@ -15,21 +15,30 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\DigitalStructure\lexer.cpp">
+    <ClCompile Include="astParser.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\DigitalStructure\main.cpp">
+    <ClCompile Include="lexer.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\DigitalStructure\newVector.cpp">
+    <ClCompile Include="main.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="newVector.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\DigitalStructure\lexer.hpp">
+    <ClInclude Include="astParser.hpp">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\DigitalStructure\newVector.hpp">
+    <ClInclude Include="lexer.hpp">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="newVector.hpp">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="ast.hpp">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
