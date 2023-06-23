@@ -12,6 +12,10 @@ public:
         : type(type), value(value) {
     }
 
+    void addChild(ASTNode* child) {
+        children.push_back(child);
+    }
+
     ~ASTNode() {
         for (auto child : children) {
             delete child;

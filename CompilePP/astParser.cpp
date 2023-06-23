@@ -8,7 +8,7 @@ void Parser::parse() {
     translationUnit();
 
     // 判断是否成功解析了整个输入
-    if (index == tokens.size()) {
+    if (index == tokens.size() - 1) {
         // 解析成功
         std::cout << "Parsing successful!" << std::endl;
     }
@@ -43,14 +43,14 @@ DeclarationType Parser::isDeclarationOrFunctionDefinition() {
     }
     else {
 		//error
-		return DeclarationType::ERROR;
+		return DeclarationType::ELSE;
 	}
     if (getCurrentToken().type == TokenType::IDENTIFIER) {
         consumeToken();
     }
     else {
         //error
-        return DeclarationType::ERROR;
+        return DeclarationType::ELSE;
     }
 
     // 解析函数定义的声明符
@@ -64,7 +64,7 @@ DeclarationType Parser::isDeclarationOrFunctionDefinition() {
 }
 
 // 创建AST节点
-ASTNode* Parser::createASTNode(const std::string& type, const std::string& value) {
+ASTNode* Parser::createASTNode(const std::string& type, const std::string& value = "") {
     return new ASTNode(type, value);
 }
 
@@ -77,13 +77,16 @@ void Parser::connectChildren(ASTNode* parent, const std::vector<ASTNode*>& child
 
 // 产生式规则：translation_unit -> external_declaration
 void Parser::translationUnit() {
-    externalDeclaration();
+    ast = createASTNode("ExternalDeclaration", "");
+    while (index < tokens.size() - 1) {
+        externalDeclaration();
+    }
 }
 
 // 产生式规则：external_declaration -> function_definition | declaration
 void Parser::externalDeclaration() {
-    ASTNode* functionDefinitionNode = nullptr;
-    ASTNode* declarationNode = nullptr;
+    ASTNode* functionDefinitionNode = createASTNode("PFunctionDefinitionNode","");
+    ASTNode* declarationNode = createASTNode("PDeclarationNode","");
     // 判断式，不消耗Token
     if (isDeclarationOrFunctionDefinition() == DeclarationType::FunctionDefinition) {
 		functionDefinitionNode = functionDefinition();
@@ -96,26 +99,33 @@ void Parser::externalDeclaration() {
 		std::cout << "Expected declaration or function definition." << std::endl;
 		return;
 	}
-    ast = createASTNode("ExternalDeclaration", "");
-    connectChildren(ast, { functionDefinitionNode, declarationNode });
+    if (functionDefinitionNode->children.size() != 0) {
+        ast->addChild(functionDefinitionNode);
+    }
+    if (declarationNode->children.size() != 0) {
+        ast->addChild(declarationNode);
+    }
+
 }
 
 // 产生式规则：function_definition -> type_specifier declarator compound_statement
 ASTNode* Parser::functionDefinition() {
-    ASTNode* functionDefinitionNode = nullptr;
+    ASTNode* functionDefinitionNode = createASTNode("FunctionDefinitionNode","");
 
     ASTNode* typeSpecifierNode = typeSpecifier();
     ASTNode* declaratorNode = declarator();
     ASTNode* compoundStatementNode = compoundStatement();
 
     //ast = createASTNode("FunctionDefinition", "");
-    connectChildren(functionDefinitionNode, { typeSpecifierNode, declaratorNode, compoundStatementNode });
+    functionDefinitionNode->addChild(typeSpecifierNode);
+    functionDefinitionNode->addChild(declaratorNode);
+    functionDefinitionNode->addChild(compoundStatementNode);
     return functionDefinitionNode;
 }
 
 // 产生式规则：declaration -> type_specifier init_declarator_list ';'
 ASTNode* Parser::declaration() {
-    ASTNode* declarationNode = nullptr;
+    ASTNode* declarationNode = createASTNode("DeclarationNode","");
     ASTNode* typeSpecifierNode = typeSpecifier();
     ASTNode* initDeclaratorListNode = initDeclaratorList();
 
@@ -125,7 +135,7 @@ ASTNode* Parser::declaration() {
     else {
         // 错误处理
         std::cout << "Expected ';' at the end of declaration." << std::endl;
-        return;
+        return nullptr;
     }
 
     //ast = createASTNode("Declaration", "");
@@ -282,10 +292,235 @@ ASTNode* Parser::initializer() {
     return assignmentExpression();
 }
 
-// 产生式规则：assignment_expression -> additive_expression
+// 产生式规则：assignment_expression ::= conditional_expression
+//| unary_expression assignment_operator assignment_expression
 ASTNode* Parser::assignmentExpression() {
-    return additiveExpression();
+    ASTNode* exprNode = conditionalExpression();
+    auto isAssignmentOperator = [](TokenType type) {
+        // 返回true或false，表示是否是赋值操作符
+        return type == TokenType::ASSIGN || type == TokenType::PLUS_ASSIGN || type == TokenType::MINUS_ASSIGN
+            || type == TokenType::MULTIPLY_ASSIGN || type == TokenType::DIVIDE_ASSIGN || type == TokenType::MODULO_ASSIGN
+            ;
+    };
+    if (isAssignmentOperator(getCurrentToken().type)) {
+        Token operatorToken = getCurrentToken();
+        consumeToken(); // 消耗赋值操作符
+
+        ASTNode* assignmentExprNode = assignmentExpression();
+
+        ASTNode* binaryExprNode = createASTNode("AssignmentExpression","");
+        binaryExprNode->addChild(exprNode);
+        binaryExprNode->addChild(createASTNode(operatorToken.lexeme));
+        binaryExprNode->addChild(assignmentExprNode);
+
+        exprNode = binaryExprNode;
+    }
+
+    return exprNode;
 }
+
+ASTNode* Parser::conditionalExpression() {
+    ASTNode* exprNode = logicalOrExpression();
+
+    if (getCurrentToken().type == TokenType::TERNARY) {
+        consumeToken(); // 消耗问号
+
+        ASTNode* trueExprNode = expression();
+
+        if (getCurrentToken().type != TokenType::COLON) {
+            // 错误处理：缺少冒号
+            std::cout << "Expected ':' in conditional expression." << std::endl;
+            return nullptr;
+        }
+        consumeToken(); // 消耗冒号
+
+        ASTNode* falseExprNode = conditionalExpression();
+
+        ASTNode* ternaryExprNode = createASTNode("ConditionalExpression");
+        ternaryExprNode->addChild(exprNode);
+        ternaryExprNode->addChild(trueExprNode);
+        ternaryExprNode->addChild(falseExprNode);
+
+        exprNode = ternaryExprNode;
+    }
+
+    return exprNode;
+}
+
+
+ASTNode* Parser::logicalOrExpression() {
+    ASTNode* exprNode = logicalAndExpression();
+
+    while (getCurrentToken().type == TokenType::LOGICAL_OR) {
+        Token operatorToken = getCurrentToken();
+        consumeToken(); // 消耗逻辑或操作符
+
+        ASTNode* nextExprNode = logicalAndExpression();
+
+        ASTNode* binaryExprNode = createASTNode("LogicalOrExpression","");
+        binaryExprNode->addChild(exprNode);
+        binaryExprNode->addChild(createASTNode(operatorToken.lexeme));
+        binaryExprNode->addChild(nextExprNode);
+
+        exprNode = binaryExprNode;
+    }
+
+    return exprNode;
+}
+
+ASTNode* Parser::logicalAndExpression() {
+    ASTNode* exprNode = inclusiveOrExpression();
+
+    while (getCurrentToken().type == TokenType::LOGICAL_AND) {
+        Token operatorToken = getCurrentToken();
+        consumeToken(); // 消耗逻辑与操作符
+
+        ASTNode* nextExprNode = inclusiveOrExpression();
+
+        ASTNode* binaryExprNode = createASTNode("LogicalAndExpression");
+        binaryExprNode->addChild(exprNode);
+        binaryExprNode->addChild(createASTNode(operatorToken.lexeme));
+        binaryExprNode->addChild(nextExprNode);
+
+        exprNode = binaryExprNode;
+    }
+
+    return exprNode;
+}
+
+ASTNode* Parser::inclusiveOrExpression() {
+    ASTNode* exprNode = exclusiveOrExpression();
+
+    while (getCurrentToken().type == TokenType::BITWISE_OR) {
+        Token operatorToken = getCurrentToken();
+        consumeToken(); // 消耗按位或操作符
+
+        ASTNode* nextExprNode = exclusiveOrExpression();
+
+        ASTNode* binaryExprNode = createASTNode("InclusiveOrExpression");
+        binaryExprNode->addChild(exprNode);
+        binaryExprNode->addChild(createASTNode(operatorToken.lexeme));
+        binaryExprNode->addChild(nextExprNode);
+
+        exprNode = binaryExprNode;
+    }
+
+    return exprNode;
+}
+
+
+
+ASTNode* Parser::exclusiveOrExpression() {
+    ASTNode* exprNode = andExpression();
+
+    while (getCurrentToken().type == TokenType::BITWISE_XOR) {
+        Token operatorToken = getCurrentToken();
+        consumeToken(); // 消耗按位异或操作符
+
+        ASTNode* nextExprNode = andExpression();
+
+        ASTNode* binaryExprNode = createASTNode("ExclusiveOrExpression");
+        binaryExprNode->addChild(exprNode);
+        binaryExprNode->addChild(createASTNode(operatorToken.lexeme));
+        binaryExprNode->addChild(nextExprNode);
+
+        exprNode = binaryExprNode;
+    }
+
+    return exprNode;
+}
+
+ASTNode* Parser::andExpression() {
+    ASTNode* exprNode = equalityExpression();
+
+    while (getCurrentToken().type == TokenType::BITWISE_AND) {
+        Token operatorToken = getCurrentToken();
+        consumeToken(); // 消耗按位与操作符
+
+        ASTNode* nextExprNode = equalityExpression();
+
+        ASTNode* binaryExprNode = createASTNode("AndExpression");
+        binaryExprNode->addChild(exprNode);
+        binaryExprNode->addChild(createASTNode(operatorToken.lexeme));
+        binaryExprNode->addChild(nextExprNode);
+
+        exprNode = binaryExprNode;
+    }
+
+    return exprNode;
+}
+
+ASTNode* Parser::equalityExpression() {
+    ASTNode* exprNode = relationalExpression();
+    auto isEqualityOperator = [](TokenType type) {
+        // 返回true或false，表示是否是相等性操作符
+        return type == TokenType::EQUAL || type == TokenType::NOT_EQUAL;
+    };
+    while (isEqualityOperator(getCurrentToken().type)) {
+        Token operatorToken = getCurrentToken();
+        consumeToken(); // 消耗相等性操作符
+
+        ASTNode* nextExprNode = relationalExpression();
+
+        ASTNode* binaryExprNode = createASTNode("EqualityExpression");
+        binaryExprNode->addChild(exprNode);
+        binaryExprNode->addChild(createASTNode(operatorToken.lexeme));
+        binaryExprNode->addChild(nextExprNode);
+
+        exprNode = binaryExprNode;
+    }
+
+    return exprNode;
+}
+
+
+ASTNode* Parser::relationalExpression() {
+	ASTNode* exprNode = shiftExpression();
+    auto isRelationalOperator = [](TokenType type) {
+        // 返回true或false，表示是否是关系操作符
+        return type == TokenType::LESS_THAN || type == TokenType::GREATER_THAN ||
+            type == TokenType::LESS_THAN_OR_EQUAL_TO || type == TokenType::GREATER_THAN_OR_EQUAL_TO;
+    };
+    while (isRelationalOperator(getCurrentToken().type)) {
+		Token operatorToken = getCurrentToken();
+		consumeToken(); // 消耗关系操作符
+
+		ASTNode* nextExprNode = shiftExpression();
+
+		ASTNode* binaryExprNode = createASTNode("RelationalExpression");
+		binaryExprNode->addChild(exprNode);
+		binaryExprNode->addChild(createASTNode(operatorToken.lexeme));
+		binaryExprNode->addChild(nextExprNode);
+
+		exprNode = binaryExprNode;
+	}
+
+	return exprNode;
+}
+
+ASTNode* Parser::shiftExpression() {
+	ASTNode* exprNode = additiveExpression();
+    auto isShiftOperator = [](TokenType type) {
+        // 返回true或false，表示是否是移位操作符
+        return type == TokenType::SHIFT_LEFT || type == TokenType::SHIFT_RIGHT || type == TokenType::SHIFT_RIGHT_UNSIGNED;
+    };
+    while (isShiftOperator(getCurrentToken().type)) {
+		Token operatorToken = getCurrentToken();
+		consumeToken(); // 消耗移位操作符
+
+		ASTNode* nextExprNode = additiveExpression();
+
+		ASTNode* binaryExprNode = createASTNode("ShiftExpression");
+		binaryExprNode->addChild(exprNode);
+		binaryExprNode->addChild(createASTNode(operatorToken.lexeme));
+		binaryExprNode->addChild(nextExprNode);
+
+		exprNode = binaryExprNode;
+	}
+
+	return exprNode;
+}
+
 
 // 产生式规则：additive_expression -> multiplicative_expression (('+' | '-') multiplicative_expression)*
 ASTNode* Parser::additiveExpression() {
@@ -321,6 +556,211 @@ ASTNode* Parser::multiplicativeExpression() {
     }
 
     return children.back();
+}
+
+// TODO: castExpression
+ASTNode* Parser::castExpression() {
+    if (getCurrentToken().type == TokenType::LEFT_PAREN) {
+        consumeToken(); // 消耗左括号
+
+        ASTNode* typeNameNode = createASTNode("typenameTemp");//typeName();
+
+        if (getCurrentToken().type == TokenType::RIGHT_PAREN) {
+            consumeToken(); // 消耗右括号
+
+            ASTNode* castExprNode = castExpression();
+
+            ASTNode* castExpressionNode = createASTNode("CastExpression");
+            castExpressionNode->addChild(createASTNode("("));
+            castExpressionNode->addChild(typeNameNode);
+            castExpressionNode->addChild(createASTNode(")"));
+            castExpressionNode->addChild(castExprNode);
+
+            return castExpressionNode;
+        }
+        else {
+            // 错误处理：缺少右括号
+            std::cout << "Expected ')' after type name in cast expression." << std::endl;
+            return nullptr;
+        }
+    }
+    else {
+        return unaryExpression();
+    }
+}
+
+
+ASTNode* Parser::unaryExpression() {
+    auto isUnaryOperator = [](TokenType type) {
+        // 返回true或false，表示是否是一元操作符
+        return type == TokenType::PLUS || type == TokenType::MINUS || type == TokenType::NOT;
+    };
+    if (isUnaryOperator(getCurrentToken().type)) {
+        Token operatorToken = getCurrentToken();
+        consumeToken(); // 消耗一元操作符
+
+        ASTNode* castExprNode = castExpression();
+
+        ASTNode* unaryExprNode = createASTNode("UnaryExpression");
+        unaryExprNode->addChild(createASTNode(operatorToken.lexeme));
+        unaryExprNode->addChild(castExprNode);
+
+        return unaryExprNode;
+    }
+    // TODO:SIZEOF
+    else if (getCurrentToken().type == TokenType::SIZEOF) {
+        Token sizeofToken = getCurrentToken();
+        consumeToken(); // 消耗 sizeof 关键字
+
+        if (getCurrentToken().type == TokenType::LEFT_PAREN) {
+            consumeToken(); // 消耗左括号
+
+            ASTNode* typeNameNode = createASTNode("typenameTemp");//typeName();
+
+            if (getCurrentToken().type == TokenType::RIGHT_PAREN) {
+                consumeToken(); // 消耗右括号
+
+                ASTNode* sizeofExprNode = createASTNode("SizeofExpression");
+                sizeofExprNode->addChild(createASTNode(sizeofToken.lexeme));
+                sizeofExprNode->addChild(createASTNode("("));
+                sizeofExprNode->addChild(typeNameNode);
+                sizeofExprNode->addChild(createASTNode(")"));
+
+                return sizeofExprNode;
+            } else {
+                // 错误处理：缺少右括号
+                std::cout << "Expected ')' after type name in sizeof expression." << std::endl;
+                return nullptr;
+            }
+        }
+        else {
+            ASTNode* unaryExprNode = createASTNode("SizeofExpression");
+            unaryExprNode->addChild(createASTNode(sizeofToken.lexeme));
+            unaryExprNode->addChild(castExpression());
+
+            return unaryExprNode;
+        }
+    }
+    else {
+        return postfixExpression();
+    }
+}
+
+
+// 产生式规则：postfix_expression -> primary_expression (('[' expression ']') | ('(' ')') | ('(' argument_expression_list ')') | ('.' identifier) | ('->' identifier) | ('++') | ('--'))*
+ASTNode* Parser::postfixExpression() {
+    ASTNode* exprNode = primaryExpression();
+
+    while (true) {
+        if (getCurrentToken().type == TokenType::LEFT_BRACKET) {
+            consumeToken(); // 消耗左方括号
+
+            ASTNode* indexExprNode = expression();
+
+            if (getCurrentToken().type == TokenType::RIGHT_BRACKET) {
+                consumeToken(); // 消耗右方括号
+
+                ASTNode* arrayAccessNode = createASTNode("ArrayAccess");
+                arrayAccessNode->addChild(exprNode);
+                arrayAccessNode->addChild(createASTNode("["));
+                arrayAccessNode->addChild(indexExprNode);
+                arrayAccessNode->addChild(createASTNode("]"));
+
+                exprNode = arrayAccessNode;
+            }
+            else {
+                // 错误处理：缺少右方括号
+                std::cout << "Expected ']' after array index." << std::endl;
+                return nullptr;
+            }
+        }
+        else if (getCurrentToken().type == TokenType::LEFT_PAREN) {
+            consumeToken(); // 消耗左括号
+
+            if (getCurrentToken().type == TokenType::RIGHT_PAREN) {
+                consumeToken(); // 消耗右括号
+
+                ASTNode* functionCallNode = createASTNode("FunctionCall");
+                functionCallNode->addChild(exprNode);
+                functionCallNode->addChild(createASTNode("("));
+                functionCallNode->addChild(createASTNode(")"));
+
+                exprNode = functionCallNode;
+            }
+            else {
+                ASTNode* argExprListNode = argumentExpressionList();
+
+                if (getCurrentToken().type == TokenType::LEFT_PAREN) {
+                    consumeToken(); // 消耗右括号
+
+                    ASTNode* functionCallNode = createASTNode("FunctionCall");
+                    functionCallNode->addChild(exprNode);
+                    functionCallNode->addChild(createASTNode("("));
+                    functionCallNode->addChild(argExprListNode);
+                    functionCallNode->addChild(createASTNode(")"));
+
+                    exprNode = functionCallNode;
+                }
+                else {
+                    // 错误处理：缺少右括号
+                    std::cout << "Expected ')' after function arguments." << std::endl;
+                    return nullptr;
+                }
+            }
+        }
+        else if (getCurrentToken().type == TokenType::DOT || getCurrentToken().type == TokenType::ARROW) {
+            Token operatorToken = getCurrentToken();
+            consumeToken(); // 消耗点号或箭头
+
+            if (getCurrentToken().type == TokenType::IDENTIFIER) {
+                std::string identifierValue = getCurrentToken().lexeme;
+                consumeToken(); // 消耗标识符
+
+                ASTNode* memberAccessNode = createASTNode("MemberAccess");
+                memberAccessNode->addChild(exprNode);
+                memberAccessNode->addChild(createASTNode(operatorToken.lexeme));
+                memberAccessNode->addChild(createASTNode(identifierValue));
+
+                exprNode = memberAccessNode;
+            }
+            else {
+                // 错误处理：点号或箭头后缺少标识符
+                std::cout << "Expected identifier after '.' or '->'." << std::endl;
+                return nullptr;
+            }
+        }
+        else if (getCurrentToken().type == TokenType::INCREMENT || getCurrentToken().type == TokenType::DECREMENT) {
+            Token operatorToken = getCurrentToken();
+            consumeToken(); // 消耗自增或自减操作符
+
+            ASTNode* postfixExprNode = createASTNode("PostfixExpression");
+            postfixExprNode->addChild(exprNode);
+            postfixExprNode->addChild(createASTNode(operatorToken.lexeme));
+
+            exprNode = postfixExprNode;
+        }
+        else {
+            break;
+        }
+    }
+
+    return exprNode;
+}
+
+ASTNode* Parser::argumentExpressionList() {
+    ASTNode* argExprListNode = createASTNode("ArgumentExpressionList");
+
+    ASTNode* exprNode = assignmentExpression();
+    argExprListNode->addChild(exprNode);
+
+    while (getCurrentToken().type == TokenType::COMMA) {
+        consumeToken(); // 消耗逗号
+
+        exprNode = assignmentExpression();
+        argExprListNode->addChild(exprNode);
+    }
+
+    return argExprListNode;
 }
 
 // 产生式规则：primary_expression -> identifier | constant | string | '(' expression ')'
@@ -395,14 +835,199 @@ ASTNode* Parser::statement() {
     if (getCurrentToken().type == TokenType::LEFT_BRACE) {
         return compoundStatement();
     }
-    else {
+    else if (getCurrentToken().type <= TokenType::RETURN && getCurrentToken().type >= TokenType::IF) {
+        if (getCurrentToken().lexeme == "if") {
+            return selectionStatement();
+        }
+        else if (getCurrentToken().lexeme == "while") {
+            return iterationStatement();
+        }
+        else if (getCurrentToken().lexeme == "return") {
+			return jumpStatement();
+		}
+        else if (getCurrentToken().lexeme == "break") {
+            return jumpStatement();
+        }
+        else if (getCurrentToken().lexeme == "continue") {
+			return jumpStatement();
+		}
+        else {
+			// 错误处理：不支持的语句类型
+			std::cout << "Unsupported statement type." << std::endl;
+			consumeToken();
+			return nullptr;
+		}
+    }
+    else if (getCurrentToken().type == TokenType::IDENTIFIER || getCurrentToken().type == TokenType::CONSTANT) {
         return expressionStatement();
+    }
+    else {
+        // 错误处理：不支持的语句类型
+        std::cout << "Unsupported statement type." << std::endl;
+        consumeToken();
+        return nullptr;
+    }
+}
+
+ASTNode* Parser::selectionStatement() {
+    consumeToken(); // 消耗关键字 if
+
+    if (getCurrentToken().type != TokenType::LEFT_PAREN) {
+        // 错误处理：期望左括号
+        std::cout << "Expected '(' after 'if' in selection statement." << std::endl;
+        return nullptr;
+    }
+
+    consumeToken(); // 消耗左括号
+
+    ASTNode* selectionStmtNode = createASTNode("SelectionStatement","");
+    connectChildren(selectionStmtNode, { expression() });
+
+    if (getCurrentToken().type != TokenType::RIGHT_PAREN) {
+        // 错误处理：期望右括号
+        std::cout << "Expected ')' after expression in selection statement." << std::endl;
+        return nullptr;
+    }
+
+    consumeToken(); // 消耗右括号
+
+    connectChildren(selectionStmtNode,{statement()});
+
+    if (getCurrentToken().type <= TokenType::RETURN && getCurrentToken().type >= TokenType::IF && getCurrentToken().lexeme == "else") {
+        consumeToken(); // 消耗关键字 else
+        connectChildren(selectionStmtNode,{statement()});
+    }
+
+    return selectionStmtNode;
+}
+
+ASTNode* Parser::iterationStatement() {
+    if (getCurrentToken().type <= TokenType::RETURN && getCurrentToken().type >= TokenType::IF && getCurrentToken().lexeme == "while") {
+        consumeToken(); // 消耗关键字 while
+
+        if (getCurrentToken().type != TokenType::LEFT_PAREN) {
+            // 错误处理：期望左括号
+            std::cout << "Expected '(' after 'while' in iteration statement." << std::endl;
+            return nullptr;
+        }
+
+        consumeToken(); // 消耗左括号
+
+        ASTNode* iterationStmtNode = createASTNode("IterationStatement","");
+        connectChildren(iterationStmtNode, { expression() });
+
+        if (getCurrentToken().type != TokenType::RIGHT_PAREN) {
+            // 错误处理：期望右括号
+            std::cout << "Expected ')' after expression in iteration statement." << std::endl;
+            return nullptr;
+        }
+
+        consumeToken(); // 消耗右括号
+        connectChildren(iterationStmtNode, { statement() });
+        return iterationStmtNode;
+    }
+    else if (getCurrentToken().type <= TokenType::RETURN && getCurrentToken().type >= TokenType::IF && getCurrentToken().lexeme == "for") {
+        consumeToken(); // 消耗关键字 for
+
+        if (getCurrentToken().type != TokenType::LEFT_PAREN) {
+            // 错误处理：期望左括号
+            std::cout << "Expected '(' after 'for' in iteration statement." << std::endl;
+            return nullptr;
+        }
+
+        consumeToken(); // 消耗左括号
+
+        ASTNode* iterationStmtNode = createASTNode("IterationStatement","");
+        ASTNode* expressionStmt1 = expressionStatement();
+        ASTNode* expressionStmt2 = expressionStatement();
+
+        if (getCurrentToken().type == TokenType::RIGHT_PAREN) {
+            // for循环没有第三个表达式
+            consumeToken(); // 消耗右括号
+        }
+        else {
+            connectChildren(iterationStmtNode, { expression() });
+
+            if (getCurrentToken().type != TokenType::RIGHT_PAREN) {
+                // 错误处理：期望右括号
+                std::cout << "Expected ')' after expression in iteration statement." << std::endl;
+                return nullptr;
+            }
+
+            consumeToken(); // 消耗右括号
+        }
+
+        connectChildren(iterationStmtNode, { statement() });
+        return iterationStmtNode;
+    }
+    else {
+        // 错误处理：不支持的迭代语句类型
+        std::cout << "Unsupported iteration statement type." << std::endl;
+        consumeToken();
+        return nullptr;
+    }
+}
+
+ASTNode* Parser::jumpStatement() {
+    if (getCurrentToken().type <= TokenType::RETURN && getCurrentToken().type >= TokenType::IF && getCurrentToken().lexeme == "continue") {
+        consumeToken(); // 消耗关键字 continue
+
+        if (getCurrentToken().type == TokenType::SEMICOLON) {
+            consumeToken(); // 消耗分号
+            return createASTNode("JumpStatement", "continue");
+        }
+        else {
+            // 错误处理：缺少分号
+            std::cout << "Expected ';' after 'continue' in jump statement." << std::endl;
+            return nullptr;
+        }
+    }
+    else if (getCurrentToken().type <= TokenType::RETURN && getCurrentToken().type >= TokenType::IF && getCurrentToken().lexeme == "break") {
+        consumeToken(); // 消耗关键字 break
+
+        if (getCurrentToken().type == TokenType::SEMICOLON) {
+            consumeToken(); // 消耗分号
+            return createASTNode("JumpStatement", "break");
+        }
+        else {
+            // 错误处理：缺少分号
+            std::cout << "Expected ';' after 'break' in jump statement." << std::endl;
+            return nullptr;
+        }
+    }
+    else if (getCurrentToken().type <= TokenType::RETURN && getCurrentToken().type >= TokenType::IF && getCurrentToken().lexeme == "return") {
+        consumeToken(); // 消耗关键字 return
+
+        if (getCurrentToken().type == TokenType::SEMICOLON) {
+            consumeToken(); // 消耗分号
+            return createASTNode("JumpStatement", "return");
+        }
+        else {
+            ASTNode* jumpStmtNode = createASTNode("JumpStatement", "return");
+            connectChildren(jumpStmtNode, { expression() });
+
+            if (getCurrentToken().type == TokenType::SEMICOLON) {
+                consumeToken(); // 消耗分号
+            }
+            else {
+                // 错误处理：缺少分号
+                std::cout << "Expected ';' after 'return' in jump statement." << std::endl;
+            }
+
+            return jumpStmtNode;
+        }
+    }
+    else {
+        // 错误处理：不支持的跳转语句类型
+        std::cout << "Unsupported jump statement type." << std::endl;
+        consumeToken();
+        return nullptr;
     }
 }
 
 // 产生式规则：expression_statement -> expression? ';'
 ASTNode* Parser::expressionStatement() {
-    ASTNode* expressionNode = nullptr;
+    ASTNode* expressionNode = createASTNode("ExpressionNode","");
 
     if (getCurrentToken().type != TokenType::SEMICOLON) {
         expressionNode = expression();
@@ -419,7 +1044,21 @@ ASTNode* Parser::expressionStatement() {
     return expressionNode;
 }
 
-// 产生式规则：expression -> assignment_expression
+// 产生式规则：expression ::= assignment_expression | expression ',' assignment_expression
 ASTNode* Parser::expression() {
-    return assignmentExpression();
+    ASTNode* exprNode = assignmentExpression();
+
+    while (getCurrentToken().type == TokenType::COMMA) {
+        consumeToken(); // 消耗逗号
+
+        ASTNode* nextExprNode = assignmentExpression();
+
+        ASTNode* commaExprNode = createASTNode("CommaExpression");
+        commaExprNode->addChild(exprNode);
+        commaExprNode->addChild(nextExprNode);
+
+        exprNode = commaExprNode;
+    }
+
+    return exprNode;
 }

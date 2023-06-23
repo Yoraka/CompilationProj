@@ -44,7 +44,7 @@ newVector<Token> Lexer::lex() {
             case '?': add_token(TokenType::TERNARY); break;
             case ':': add_token(TokenType::COLON); break;
             case '=': add_token(match('=') ? TokenType::EQUAL : TokenType::ASSIGN); break;
-            case '!': add_token(match('=') ? TokenType::NOT_EQUAL : TokenType::END_OF_FILE); break;
+            case '!': add_token(match('=') ? TokenType::NOT_EQUAL : TokenType::NOT); break;
             case '<': add_token(match('=') ? TokenType::LESS_THAN_OR_EQUAL_TO : TokenType::LESS_THAN); break;
             case '>': add_token(match('=') ? TokenType::GREATER_THAN_OR_EQUAL_TO : TokenType::GREATER_THAN); break;
 
@@ -162,8 +162,10 @@ void Lexer::identifier() {
     }
     std::string lexeme = source_.substr(start, current_ - start);
     TokenType type = TokenType::IDENTIFIER;
-
-    if (lexeme == "if") {
+    if (lexeme == "sizeof") {
+        type = TokenType::SIZEOF;
+    }
+    else if (lexeme == "if") {
         type = TokenType::IF;
     } 
     else if (lexeme == "else") {

@@ -4,10 +4,11 @@
 #include "lexer.hpp"
 #include "newVector.hpp"
 #include "ast.hpp"
+extern struct Token;
 
 enum class DeclarationType
 {
-    Declaration, FunctionDefinition, ERROR
+    Declaration, FunctionDefinition, ELSE
 };
 
 class Parser {
@@ -45,11 +46,27 @@ private:
     ASTNode* typeSpecifier();
     ASTNode* initializer();
     ASTNode* assignmentExpression();
+    ASTNode* conditionalExpression();
+    ASTNode* logicalOrExpression();
+    ASTNode* logicalAndExpression();
+    ASTNode* equalityExpression();
+    ASTNode* relationalExpression();
+    ASTNode* inclusiveOrExpression();
+    ASTNode* exclusiveOrExpression();
+    ASTNode* andExpression();
+    ASTNode* shiftExpression();
+    ASTNode* castExpression();
+    ASTNode* unaryExpression();
+    ASTNode* postfixExpression();
+    ASTNode* argumentExpressionList();
     ASTNode* additiveExpression();
     ASTNode* multiplicativeExpression();
     ASTNode* primaryExpression();
     ASTNode* compoundStatement();
     ASTNode* statement();
+    ASTNode* selectionStatement();
+    ASTNode* iterationStatement();
+    ASTNode* jumpStatement();
     ASTNode* expressionStatement();
     ASTNode* expression();
 };
