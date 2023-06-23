@@ -6,7 +6,26 @@
 #include "lexer.hpp"
 #include "newVector.hpp"
 #include "newVector.cpp"
+// Open this Project in UTF-8
+// BNF 参考自 https://blog.csdn.net/Alexabc3000/article/details/126789474
+void printASTNode(ASTNode* node, int indent = 0) {
+    if (node == nullptr) {
+        return;
+    }
 
+    // 打印缩进
+    for (int i = 0; i < indent; ++i) {
+        std::cout << "  ";
+    }
+
+    // 打印节点类型和值
+    std::cout << node->type << ": " << node->value << std::endl;
+
+    // 打印子节点
+    for (auto child : node->children) {
+        printASTNode(child, indent + 1);
+    }
+}
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <file_path>\n";
@@ -49,6 +68,7 @@ int main(int argc, char* argv[]) {
     if (ast != nullptr) {
         // 打印AST或执行其他操作
         std::cout << "AST constructed." << std::endl;
+        printASTNode(ast);
     }
 
     // 释放AST内存

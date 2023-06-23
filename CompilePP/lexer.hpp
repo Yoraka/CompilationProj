@@ -67,7 +67,7 @@ private:
     bool match(char expected);
     void skip_whitespace();
     void skip_comment();
-    void add_token(TokenType type);
+    void add_token(std::tuple<TokenType,std::string>);
     void add_token(TokenType type, const std::string& lexeme);
     // void add_token(TokenType type, double value);
     // void add_token(TokenType type, int value);

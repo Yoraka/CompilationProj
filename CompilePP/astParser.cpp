@@ -357,7 +357,7 @@ ASTNode* Parser::logicalOrExpression() {
 
         ASTNode* nextExprNode = logicalAndExpression();
 
-        ASTNode* binaryExprNode = createASTNode("LogicalOrExpression","");
+        ASTNode* binaryExprNode = createASTNode("LogicalOrExpression");
         binaryExprNode->addChild(exprNode);
         binaryExprNode->addChild(createASTNode(operatorToken.lexeme));
         binaryExprNode->addChild(nextExprNode);

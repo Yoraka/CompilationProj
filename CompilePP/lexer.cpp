@@ -9,44 +9,44 @@ newVector<Token> Lexer::lex() {
 
         switch (c) {
             // Preprocessor
-            case '#': add_token(TokenType::HASH); break;
+            case '#': add_token(TokenType::HASH,"#"); break;
 
             // Single-character tokens
-            case '(': add_token(TokenType::LEFT_PAREN); break;
-            case ')': add_token(TokenType::RIGHT_PAREN); break;
-            case '[': add_token(TokenType::LEFT_BRACKET); break;
-            case ']': add_token(TokenType::RIGHT_BRACKET); break;
-            case '{': add_token(TokenType::LEFT_BRACE); break;
-            case '}': add_token(TokenType::RIGHT_BRACE); break;
-            case ',': add_token(TokenType::COMMA); break;
-            case '.': add_token(TokenType::DOT); break;
-            case ';': add_token(TokenType::SEMICOLON); break;
+            case '(': add_token(TokenType::LEFT_PAREN,"("); break;
+            case ')': add_token(TokenType::RIGHT_PAREN,")"); break;
+            case '[': add_token(TokenType::LEFT_BRACKET,"["); break;
+            case ']': add_token(TokenType::RIGHT_BRACKET,"]"); break;
+            case '{': add_token(TokenType::LEFT_BRACE,"{"); break;
+            case '}': add_token(TokenType::RIGHT_BRACE,"}"); break;
+            case ',': add_token(TokenType::COMMA,","); break;
+            case '.': add_token(TokenType::DOT,"."); break;
+            case ';': add_token(TokenType::SEMICOLON,";"); break;
 
             // Operators
-            case '+': if (match('=')) add_token(TokenType::PLUS_ASSIGN);
-                    else if (match('+')) add_token(TokenType::INCREMENT);
-                    else add_token(TokenType::PLUS);
+            case '+': if (match('=')) add_token(TokenType::PLUS_ASSIGN,"+=");
+                    else if (match('+')) add_token(TokenType::INCREMENT,"++");
+                    else add_token(TokenType::PLUS,"+");
                     break;
-            case '-': if(match('=')) add_token(TokenType::MINUS_ASSIGN);
-                	else if (match('-')) add_token(TokenType::DECREMENT);
-					else add_token(TokenType::MINUS);
+            case '-': if(match('=')) add_token(TokenType::MINUS_ASSIGN,"-=");
+                	else if (match('-')) add_token(TokenType::DECREMENT,"--");
+					else add_token(TokenType::MINUS,"-");
                     break;
-            case '*': if(match('=')) add_token(TokenType::MULTIPLY_ASSIGN);
+            case '*': if(match('=')) add_token(TokenType::MULTIPLY_ASSIGN,"*=");
                     // TODO: Pointer
-                	else add_token(TokenType::MULTIPLY);
+                	else add_token(TokenType::MULTIPLY,"*");
                 break;
-            case '/': add_token(match('=') ? TokenType::DIVIDE_ASSIGN : TokenType::DIVIDE); break;
-            case '%': add_token(match('=') ? TokenType::MODULO_ASSIGN : TokenType::MODULO); break;
-            case '&': add_token(match('&') ? TokenType::LOGICAL_AND : TokenType::BITWISE_AND); break;
-            case '|': add_token(match('|') ? TokenType::LOGICAL_OR : TokenType::BITWISE_OR); break;
-            case '^': add_token(TokenType::BITWISE_XOR); break;
-            case '~': add_token(TokenType::BITWISE_NOT); break;
-            case '?': add_token(TokenType::TERNARY); break;
-            case ':': add_token(TokenType::COLON); break;
-            case '=': add_token(match('=') ? TokenType::EQUAL : TokenType::ASSIGN); break;
-            case '!': add_token(match('=') ? TokenType::NOT_EQUAL : TokenType::NOT); break;
-            case '<': add_token(match('=') ? TokenType::LESS_THAN_OR_EQUAL_TO : TokenType::LESS_THAN); break;
-            case '>': add_token(match('=') ? TokenType::GREATER_THAN_OR_EQUAL_TO : TokenType::GREATER_THAN); break;
+            case '/': add_token(match('=') ? std::tuple(TokenType::DIVIDE_ASSIGN, "/=") : std::tuple(TokenType::DIVIDE, "/")); break;
+            case '%': add_token(match('=') ? std::tuple(TokenType::MODULO_ASSIGN,"%=") : std::tuple(TokenType::MODULO, "%")); break;
+            case '&': add_token(match('&') ? std::tuple(TokenType::LOGICAL_AND,"&&") : std::tuple(TokenType::BITWISE_AND,"&")); break;
+            case '|': add_token(match('|') ? std::tuple(TokenType::LOGICAL_OR,"||") : std::tuple(TokenType::BITWISE_OR,"|")); break;
+            case '^': add_token(TokenType::BITWISE_XOR,"^"); break;
+            case '~': add_token(TokenType::BITWISE_NOT,"~"); break;
+            case '?': add_token(TokenType::TERNARY,"?"); break;
+            case ':': add_token(TokenType::COLON,":"); break;
+            case '=': add_token(match('=') ? std::tuple(TokenType::EQUAL,"==") : std::tuple(TokenType::ASSIGN,"=")); break;
+            case '!': add_token(match('=') ? std::tuple(TokenType::NOT_EQUAL,"!=") : std::tuple(TokenType::NOT,"!")); break;
+            case '<': add_token(match('=') ? std::tuple(TokenType::LESS_THAN_OR_EQUAL_TO,"<=") : std::tuple(TokenType::LESS_THAN,"<")); break;
+            case '>': add_token(match('=') ? std::tuple(TokenType::GREATER_THAN_OR_EQUAL_TO,">=") : std::tuple(TokenType::GREATER_THAN,">")); break;
 
             // Whitespace
             case ' ':
@@ -100,8 +100,8 @@ bool Lexer::match(char expected) {
     return true;
 }
 
-void Lexer::add_token(TokenType type) {
-    add_token(type, "");
+void Lexer::add_token(std::tuple<TokenType,std::string> TokenTuple) {
+    add_token(std::get<0>(TokenTuple),std::get<1>(TokenTuple));
 }
 
 void Lexer::add_token(TokenType type, const std::string& lexeme) {
