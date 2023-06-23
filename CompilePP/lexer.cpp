@@ -138,13 +138,13 @@ bool Lexer::is_alpha(char c) const {
 
 void Lexer::number_literal() {
     int start = current_ - 1;
-    TokenType type = TokenType::INTEGER;
+    TokenType type = TokenType::CONSTANT;
     while (is_digit(peek())) {
         advance();
     }
 
     if (peek() == '.' && is_digit(peek_next())) {
-        type = TokenType::FLOAT;
+        type = TokenType::CONSTANT;
         advance();
 
         while (is_digit(peek())) {

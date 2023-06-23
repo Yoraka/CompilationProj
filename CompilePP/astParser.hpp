@@ -5,6 +5,10 @@
 #include "newVector.hpp"
 #include "ast.hpp"
 
+enum class DeclarationType
+{
+    Declaration, FunctionDefinition, ERROR
+};
 
 class Parser {
 public:
@@ -27,13 +31,17 @@ private:
     Token getCurrentToken() const;
     void connectChildren(ASTNode* parent, const std::vector<ASTNode*>& children);
     void consumeToken();
+    void putBackToken();
     void translationUnit();
     void externalDeclaration();
-    void functionDefinition();
-    void declaration();
+    DeclarationType isDeclarationOrFunctionDefinition();
+    ASTNode* functionDefinition();
+    ASTNode* declaration();
     ASTNode* initDeclaratorList();
     ASTNode* initDeclarator();
     ASTNode* declarator();
+    ASTNode* parameterList();
+    ASTNode* parameterDeclaration();
     ASTNode* typeSpecifier();
     ASTNode* initializer();
     ASTNode* assignmentExpression();

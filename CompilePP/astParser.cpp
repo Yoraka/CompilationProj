@@ -29,6 +29,40 @@ void Parser::consumeToken() {
     index++;
 }
 
+// 辅助函数，移动到上一个标记
+void Parser::putBackToken() {
+    index--;
+}
+
+DeclarationType Parser::isDeclarationOrFunctionDefinition() {
+    // 备份当前的标记位置
+    size_t currentPosition = index;
+
+    if (getCurrentToken().type <= TokenType::NULLPTR && getCurrentToken().type >= TokenType::INTEGER) {
+        consumeToken();
+    }
+    else {
+		//error
+		return DeclarationType::ERROR;
+	}
+    if (getCurrentToken().type == TokenType::IDENTIFIER) {
+        consumeToken();
+    }
+    else {
+        //error
+        return DeclarationType::ERROR;
+    }
+
+    // 解析函数定义的声明符
+    if (getCurrentToken().type == TokenType::LEFT_PAREN) {
+        index = currentPosition;
+        return DeclarationType::FunctionDefinition; // 是函数定义
+    }
+    //回退到之前的位置
+    index = currentPosition;
+    return DeclarationType::Declaration; // 是声明
+}
+
 // 创建AST节点
 ASTNode* Parser::createASTNode(const std::string& type, const std::string& value) {
     return new ASTNode(type, value);
@@ -48,26 +82,40 @@ void Parser::translationUnit() {
 
 // 产生式规则：external_declaration -> function_definition | declaration
 void Parser::externalDeclaration() {
-    if (getCurrentToken().type == TokenType::Keywords && getCurrentToken().lexeme == "int") {
-        functionDefinition();
-    }
+    ASTNode* functionDefinitionNode = nullptr;
+    ASTNode* declarationNode = nullptr;
+    // 判断式，不消耗Token
+    if (isDeclarationOrFunctionDefinition() == DeclarationType::FunctionDefinition) {
+		functionDefinitionNode = functionDefinition();
+	}
+    else if (isDeclarationOrFunctionDefinition() == DeclarationType::Declaration) {
+		declarationNode = declaration();
+	}
     else {
-        declaration();
-    }
+		// 错误处理
+		std::cout << "Expected declaration or function definition." << std::endl;
+		return;
+	}
+    ast = createASTNode("ExternalDeclaration", "");
+    connectChildren(ast, { functionDefinitionNode, declarationNode });
 }
 
 // 产生式规则：function_definition -> type_specifier declarator compound_statement
-void Parser::functionDefinition() {
+ASTNode* Parser::functionDefinition() {
+    ASTNode* functionDefinitionNode = nullptr;
+
     ASTNode* typeSpecifierNode = typeSpecifier();
     ASTNode* declaratorNode = declarator();
     ASTNode* compoundStatementNode = compoundStatement();
 
-    ast = createASTNode("FunctionDefinition", "");
-    connectChildren(ast, { typeSpecifierNode, declaratorNode, compoundStatementNode });
+    //ast = createASTNode("FunctionDefinition", "");
+    connectChildren(functionDefinitionNode, { typeSpecifierNode, declaratorNode, compoundStatementNode });
+    return functionDefinitionNode;
 }
 
 // 产生式规则：declaration -> type_specifier init_declarator_list ';'
-void Parser::declaration() {
+ASTNode* Parser::declaration() {
+    ASTNode* declarationNode = nullptr;
     ASTNode* typeSpecifierNode = typeSpecifier();
     ASTNode* initDeclaratorListNode = initDeclaratorList();
 
@@ -77,10 +125,13 @@ void Parser::declaration() {
     else {
         // 错误处理
         std::cout << "Expected ';' at the end of declaration." << std::endl;
+        return;
     }
 
-    ast = createASTNode("Declaration", "");
-    connectChildren(ast, { typeSpecifierNode, initDeclaratorListNode });
+    //ast = createASTNode("Declaration", "");
+
+    connectChildren(declarationNode, { typeSpecifierNode, initDeclaratorListNode });
+    return declarationNode;
 }
 
 // 产生式规则：init_declarator_list -> init_declarator (',' init_declarator)*
@@ -116,26 +167,103 @@ ASTNode* Parser::initDeclarator() {
     return initDeclaratorNode;
 }
 
-// 产生式规则：declarator -> identifier
+// 产生式规则：declarator -> identifier parameter_list
 ASTNode* Parser::declarator() {
     if (getCurrentToken().type == TokenType::IDENTIFIER) {
         std::string identifierValue = getCurrentToken().lexeme;
-        consumeToken();
+        consumeToken(); // 消耗掉当前标识符标记
 
+        // 检查是否有参数列表
+        if (getCurrentToken().type == TokenType::LEFT_PAREN) {
+            consumeToken(); // 消耗掉左括号
+
+            // 解析参数列表
+            ASTNode* parameters = nullptr;
+            if (getCurrentToken().type != TokenType::RIGHT_PAREN) {
+                parameters = parameterList();
+            }
+
+            // 检查右括号
+            if (getCurrentToken().type == TokenType::RIGHT_PAREN) {
+                consumeToken(); // 消耗掉右括号
+
+                // 创建声明符节点，并将标识符和参数列表作为属性
+                ASTNode* declaratorNode = createASTNode("Declarator", identifierValue);
+                connectChildren(declaratorNode, { parameters });
+                return declaratorNode;
+            }
+            else {
+                // 错误处理：缺少右括号
+                std::cout << "Expected ')' after parameter list in declarator." << std::endl;
+                // 其他错误处理逻辑，例如抛出异常或采取适当的措施
+                return nullptr;
+            }
+        }
+
+        // 创建只包含标识符的声明符节点
         ASTNode* declaratorNode = createASTNode("Declarator", identifierValue);
         return declaratorNode;
     }
     else {
         // 错误处理
         std::cout << "Expected identifier in declarator." << std::endl;
+        // 其他错误处理逻辑，例如抛出异常或采取适当的措施
         return nullptr;
     }
 }
 
+// 产生式规则：parameter_list -> '(' parameter_declaration ')'
+ASTNode* Parser::parameterList() {
+    ASTNode* parameterListNode = createASTNode("ParameterList", "");
+
+    connectChildren(parameterListNode, { parameterDeclaration() });
+
+    while (getCurrentToken().type == TokenType::COMMA) {
+        consumeToken(); // 消耗逗号
+        connectChildren(parameterListNode, { parameterDeclaration() });
+    }
+
+    return parameterListNode;
+}
+
+// 产生式规则：parameter_declaration -> declaration_specifiers identifier
+ASTNode* Parser::parameterDeclaration() {
+    // TODO:typeSpecifier() change to declarationSpecifiers()
+    ASTNode* declarationSpecifiersNode = typeSpecifier();
+
+    if (getCurrentToken().type == TokenType::IDENTIFIER) {
+        std::string identifierValue = getCurrentToken().lexeme;
+        consumeToken(); // 消耗标识符
+
+        ASTNode* parameterDeclarationNode = createASTNode("ParameterDeclaration","");
+        connectChildren(parameterDeclarationNode, { declarationSpecifiersNode });
+        connectChildren(parameterDeclarationNode, { createASTNode("Identifier", identifierValue) });
+
+        return parameterDeclarationNode;
+    }
+    else {
+        // 错误处理
+        std::cout << "Expected identifier in parameter declaration." << std::endl;
+        // 其他错误处理逻辑，例如抛出异常或采取适当的措施
+        return nullptr;
+    }
+}
+
+// TODO:产生式规则：declaration_specifiers ::= storage_class_specifier
+//                                          | type_specifier
+//                                          | type_qualifier
+//                                          | function_specifier
+//                                          | declaration_specifiers storage_class_specifier
+//                                          | declaration_specifiers type_specifier
+//                                          | declaration_specifiers type_qualifier
+//                                          | declaration_specifiers function_specifier
+
+
 // 产生式规则：type_specifier -> 'int' | 'float' | 'char'
 ASTNode* Parser::typeSpecifier() {
-    if (getCurrentToken().type == TokenType::Keyword &&
-        (getCurrentToken().lexeme == "int" || getCurrentToken().lexeme == "float" || getCurrentToken().lexeme == "char")) {
+    // TODO:Stupid Design, need to be improved
+    if (getCurrentToken().type <= TokenType::NULLPTR && getCurrentToken().type >= TokenType::INTEGER
+        ) {
         std::string typeSpecifierValue = getCurrentToken().lexeme;
         consumeToken();
 
@@ -195,9 +323,11 @@ ASTNode* Parser::multiplicativeExpression() {
     return children.back();
 }
 
-// 产生式规则：primary_expression -> identifier | constant | '(' expression ')'
+// 产生式规则：primary_expression -> identifier | constant | string | '(' expression ')'
 ASTNode* Parser::primaryExpression() {
-    if (getCurrentToken().type == TokenType::IDENTIFIER || getCurrentToken().type == TokenType::Constant) {
+    if (getCurrentToken().type == TokenType::IDENTIFIER || 
+        getCurrentToken().type == TokenType::CONSTANT
+        ) {
         std::string value = getCurrentToken().lexeme;
         consumeToken();
 
@@ -231,9 +361,9 @@ ASTNode* Parser::compoundStatement() {
         consumeToken();
         std::vector<ASTNode*> children;
 
-        while (getCurrentToken().type != TokenType::RIGHT_BRACE) {
-            if (getCurrentToken().type == TokenType::Keyword && getCurrentToken().lexeme == "int") {
-                children.push_back(declaration);
+        while (getCurrentToken().type != TokenType::RIGHT_BRACE && index < tokens.size()) {
+            if (isDeclarationOrFunctionDefinition() == DeclarationType::Declaration) {
+                children.push_back(declaration());
             }
             else {
                 children.push_back(statement());
