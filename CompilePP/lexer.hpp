@@ -38,7 +38,11 @@ struct Token {
     std::string lexeme;     // 词法单元的字符串值
     size_t line;               // 词法单元所在行号
     size_t column;             // 词法单元所在列号
-    ~Token() = default;
+    ~Token() {
+        if (!lexeme.empty()) {
+            lexeme.clear();
+        }
+    }
 };
 
 class Lexer {

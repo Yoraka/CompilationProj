@@ -2,12 +2,14 @@
 #include "astParser.hpp"  // 语法分析器产生的头文件
 #include "newVector.cpp"
 
+// 符号表见 https://www.runoob.com/cplusplus/cpp-operators.html
 // 公共接口，启动语法分析
 void Parser::parse() {
     // 开始符号的递归调用
     translationUnit();
 
     // 判断是否成功解析了整个输入
+    // 最后一个token是EOF
     if (index == tokens.size() - 1) {
         // 解析成功
         std::cout << "Parsing successful!" << std::endl;
@@ -319,6 +321,8 @@ ASTNode* Parser::assignmentExpression() {
     return exprNode;
 }
 
+//产生式规则:conditional_expression :: = logical_or_expression
+//         | logical_or_expression '?' expression ':' conditional_expression
 ASTNode* Parser::conditionalExpression() {
     ASTNode* exprNode = logicalOrExpression();
 
@@ -347,7 +351,8 @@ ASTNode* Parser::conditionalExpression() {
     return exprNode;
 }
 
-
+// 产生式规则：logical_or_expression :: = logical_and_expression
+//          | logical_or_expression OR_OP logical_and_expression
 ASTNode* Parser::logicalOrExpression() {
     ASTNode* exprNode = logicalAndExpression();
 
@@ -368,6 +373,8 @@ ASTNode* Parser::logicalOrExpression() {
     return exprNode;
 }
 
+// 产生式规则：logical_and_expression :: = inclusive_or_expression
+//          | logical_and_expression AND_OP inclusive_or_expression
 ASTNode* Parser::logicalAndExpression() {
     ASTNode* exprNode = inclusiveOrExpression();
 
@@ -388,6 +395,8 @@ ASTNode* Parser::logicalAndExpression() {
     return exprNode;
 }
 
+// 产生式规则：inclusive_or_expression :: = exclusive_or_expression
+//          | inclusive_or_expression '|' exclusive_or_expression
 ASTNode* Parser::inclusiveOrExpression() {
     ASTNode* exprNode = exclusiveOrExpression();
 
@@ -409,7 +418,8 @@ ASTNode* Parser::inclusiveOrExpression() {
 }
 
 
-
+// 产生式规则：exclusive_or_expression :: = and_expression
+//          | exclusive_or_expression '^' and_expression
 ASTNode* Parser::exclusiveOrExpression() {
     ASTNode* exprNode = andExpression();
 
@@ -430,6 +440,8 @@ ASTNode* Parser::exclusiveOrExpression() {
     return exprNode;
 }
 
+// 产生式规则：and_expression :: = equality_expression
+//          | and_expression '&' equality_expression
 ASTNode* Parser::andExpression() {
     ASTNode* exprNode = equalityExpression();
 
@@ -450,6 +462,9 @@ ASTNode* Parser::andExpression() {
     return exprNode;
 }
 
+// 产生式规则：equality_expression :: = relational_expression
+//          | equality_expression EQ_OP relational_expression
+//          | equality_expression NE_OP relational_expression
 ASTNode* Parser::equalityExpression() {
     ASTNode* exprNode = relationalExpression();
     auto isEqualityOperator = [](TokenType type) {
@@ -473,7 +488,11 @@ ASTNode* Parser::equalityExpression() {
     return exprNode;
 }
 
-
+// 产生式规则：relational_expression :: = shift_expression
+//          | relational_expression '<' shift_expression
+//          | relational_expression '>' shift_expression
+//          | relational_expression LE_OP shift_expression
+//          | relational_expression GE_OP shift_expression
 ASTNode* Parser::relationalExpression() {
 	ASTNode* exprNode = shiftExpression();
     auto isRelationalOperator = [](TokenType type) {
@@ -498,6 +517,9 @@ ASTNode* Parser::relationalExpression() {
 	return exprNode;
 }
 
+// 产生式规则：shift_expression :: = additive_expression
+//          | shift_expression SHIFT_LEFT additive_expression
+//          | shift_expression SHIFT_RIGHT additive_expression
 ASTNode* Parser::shiftExpression() {
 	ASTNode* exprNode = additiveExpression();
     auto isShiftOperator = [](TokenType type) {
@@ -559,6 +581,7 @@ ASTNode* Parser::multiplicativeExpression() {
 }
 
 // TODO: castExpression
+// 产生式规则：cast_expression -> unary_expression | '(' type_name ')' cast_expression
 ASTNode* Parser::castExpression() {
     if (getCurrentToken().type == TokenType::LEFT_PAREN) {
         consumeToken(); // 消耗左括号
@@ -589,7 +612,12 @@ ASTNode* Parser::castExpression() {
     }
 }
 
-
+// 产生式规则：unary_expression -> postfix_expression
+//          | INC_OP unary_expression
+//          | DEC_OP unary_expression
+//          | unary_operator cast_expression
+//          | SIZEOF unary_expression
+//          | SIZEOF '(' type_name ')'
 ASTNode* Parser::unaryExpression() {
     auto isUnaryOperator = [](TokenType type) {
         // 返回true或false，表示是否是一元操作符
@@ -747,6 +775,8 @@ ASTNode* Parser::postfixExpression() {
     return exprNode;
 }
 
+
+// 产生式规则：argument_expression_list -> assignment_expression (',' assignment_expression)*
 ASTNode* Parser::argumentExpressionList() {
     ASTNode* argExprListNode = createASTNode("ArgumentExpressionList");
 
@@ -839,6 +869,9 @@ ASTNode* Parser::statement() {
         if (getCurrentToken().lexeme == "if") {
             return selectionStatement();
         }
+        //else if (getCurrentToken().lexeme == "else") {
+        //    return selectionStatement();
+        //}
         else if (getCurrentToken().lexeme == "while") {
             return iterationStatement();
         }
@@ -869,38 +902,53 @@ ASTNode* Parser::statement() {
     }
 }
 
+// 产生式规则：selection_stat		: 'if' '(' exp ')' stat
+//          | 'if' '(' exp ')' stat 'else' stat
+//          | 'switch' '(' exp ')' stat
 ASTNode* Parser::selectionStatement() {
-    consumeToken(); // 消耗关键字 if
+    if (getCurrentToken().type <= TokenType::RETURN && getCurrentToken().type >= TokenType::IF && getCurrentToken().lexeme == "if") {
+		consumeToken(); // 消耗关键字 if
 
-    if (getCurrentToken().type != TokenType::LEFT_PAREN) {
-        // 错误处理：期望左括号
-        std::cout << "Expected '(' after 'if' in selection statement." << std::endl;
-        return nullptr;
-    }
+        if (getCurrentToken().type != TokenType::LEFT_PAREN) {
+			// 错误处理：期望左括号
+			std::cout << "Expected '(' after 'if' in selection statement." << std::endl;
+			return nullptr;
+		}
 
-    consumeToken(); // 消耗左括号
+		consumeToken(); // 消耗左括号
 
-    ASTNode* selectionStmtNode = createASTNode("SelectionStatement","");
-    connectChildren(selectionStmtNode, { expression() });
+		ASTNode* selectionStmtNode = createASTNode("SelectionStatement", "");
+		connectChildren(selectionStmtNode, { expression() });
 
-    if (getCurrentToken().type != TokenType::RIGHT_PAREN) {
-        // 错误处理：期望右括号
-        std::cout << "Expected ')' after expression in selection statement." << std::endl;
-        return nullptr;
-    }
+        if (getCurrentToken().type != TokenType::RIGHT_PAREN) {
+			// 错误处理：期望右括号
+			std::cout << "Expected ')' after expression in selection statement." << std::endl;
+			return nullptr;
+		}
 
-    consumeToken(); // 消耗右括号
+		consumeToken(); // 消耗右括号
 
-    connectChildren(selectionStmtNode,{statement()});
+		ASTNode* ifStmtNode = statement();
+		selectionStmtNode->addChild(ifStmtNode);
 
-    if (getCurrentToken().type <= TokenType::RETURN && getCurrentToken().type >= TokenType::IF && getCurrentToken().lexeme == "else") {
-        consumeToken(); // 消耗关键字 else
-        connectChildren(selectionStmtNode,{statement()});
-    }
+        if (getCurrentToken().type <= TokenType::RETURN && getCurrentToken().type >= TokenType::IF && getCurrentToken().lexeme == "else") {
+			consumeToken(); // 消耗关键字 else
 
-    return selectionStmtNode;
+			ASTNode* elseStmtNode = statement();
+			selectionStmtNode->addChild(elseStmtNode);
+		}
+
+		return selectionStmtNode;
+	}
+    else {
+		// 错误处理：不支持的语句类型
+		std::cout << "Unsupported statement type." << std::endl;
+		consumeToken();
+		return nullptr;
+	}
 }
 
+// 产生式规则：iteration_statement -> 'while' '(' expression ')' statement
 ASTNode* Parser::iterationStatement() {
     if (getCurrentToken().type <= TokenType::RETURN && getCurrentToken().type >= TokenType::IF && getCurrentToken().lexeme == "while") {
         consumeToken(); // 消耗关键字 while
@@ -968,6 +1016,7 @@ ASTNode* Parser::iterationStatement() {
     }
 }
 
+// 产生式规则：jump_statement -> 'return' expression? ';' | 'break' ';' | 'continue' ';'
 ASTNode* Parser::jumpStatement() {
     if (getCurrentToken().type <= TokenType::RETURN && getCurrentToken().type >= TokenType::IF && getCurrentToken().lexeme == "continue") {
         consumeToken(); // 消耗关键字 continue

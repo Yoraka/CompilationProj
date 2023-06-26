@@ -6,7 +6,8 @@
 #include "lexer.hpp"
 #include "newVector.hpp"
 #include "newVector.cpp"
-// Open this Project in UTF-8
+// Cpp 20 Standard
+// Cpp Source File Encoding: UTF-8 (with BOM)
 // BNF 参考自 https://blog.csdn.net/Alexabc3000/article/details/126789474
 void printASTNode(ASTNode* node, int indent = 0) {
     if (node == nullptr) {

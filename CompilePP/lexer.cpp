@@ -76,7 +76,7 @@ newVector<Token> Lexer::lex() {
         }
     }
 
-    tokens_.push_back({ TokenType::END_OF_FILE, "", line_, column_ });
+    tokens_.push_back({ TokenType::END_OF_FILE, "EOF", line_, column_ });
     return tokens_;
 }
 
