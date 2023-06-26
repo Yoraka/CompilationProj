@@ -40,7 +40,8 @@ private:
     ASTNode* declaration();
     ASTNode* initDeclaratorList();
     ASTNode* initDeclarator();
-    ASTNode* declarator();
+    ASTNode* directDeclarator();
+    ASTNode* constantExpression();
     ASTNode* parameterList();
     ASTNode* parameterDeclaration();
     ASTNode* typeSpecifier();

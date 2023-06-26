@@ -110,12 +110,12 @@ void Parser::externalDeclaration() {
 
 }
 
-// 产生式规则：function_definition -> type_specifier declarator compound_statement
+// 产生式规则：function_definition -> type_specifier direct_declarator compound_statement
 ASTNode* Parser::functionDefinition() {
     ASTNode* functionDefinitionNode = createASTNode("FunctionDefinitionNode","");
 
     ASTNode* typeSpecifierNode = typeSpecifier();
-    ASTNode* declaratorNode = declarator();
+    ASTNode* declaratorNode = directDeclarator();
     ASTNode* compoundStatementNode = compoundStatement();
 
     //ast = createASTNode("FunctionDefinition", "");
@@ -163,9 +163,9 @@ ASTNode* Parser::initDeclaratorList() {
     return initDeclaratorListNode;
 }
 
-// 产生式规则：init_declarator -> declarator ('=' initializer)?
+// 产生式规则：init_declarator -> direct_declarator ('=' initializer)?
 ASTNode* Parser::initDeclarator() {
-    ASTNode* declaratorNode = declarator();
+    ASTNode* declaratorNode = directDeclarator();
     ASTNode* initializerNode = nullptr;
 
     if (getCurrentToken().type == TokenType::ASSIGN) {
@@ -179,50 +179,70 @@ ASTNode* Parser::initDeclarator() {
     return initDeclaratorNode;
 }
 
-// 产生式规则：declarator -> identifier parameter_list
-ASTNode* Parser::declarator() {
+// 产生式规则：direct_declarator ::=  IDENTIFIER | direct_declarator’[‘ ‘]’
+//                                              | direct_declarator ’[’ constant_expression ’]’
+//                                              | IDENTIFIER '(' parameter_list ')'
+//                                              | IDENTIFIER '('')'
+//                                              | direct_declarator‘, ’identifier_list
+
+ASTNode* Parser::directDeclarator() {
+    ASTNode* directDeclaratorNode = createASTNode("DirectDeclarator", "");
+
     if (getCurrentToken().type == TokenType::IDENTIFIER) {
         std::string identifierValue = getCurrentToken().lexeme;
-        consumeToken(); // 消耗掉当前标识符标记
+        consumeToken(); // 消耗标识符
 
-        // 检查是否有参数列表
-        if (getCurrentToken().type == TokenType::LEFT_PAREN) {
-            consumeToken(); // 消耗掉左括号
+        if (getCurrentToken().type == TokenType::LEFT_BRACKET) {
+            consumeToken(); // 消耗左方括号
 
-            // 解析参数列表
-            ASTNode* parameters = nullptr;
-            if (getCurrentToken().type != TokenType::RIGHT_PAREN) {
-                parameters = parameterList();
-            }
-
-            // 检查右括号
-            if (getCurrentToken().type == TokenType::RIGHT_PAREN) {
-                consumeToken(); // 消耗掉右括号
-
-                // 创建声明符节点，并将标识符和参数列表作为属性
-                ASTNode* declaratorNode = createASTNode("Declarator", identifierValue);
-                connectChildren(declaratorNode, { parameters });
-                return declaratorNode;
+            if (getCurrentToken().type == TokenType::RIGHT_BRACKET) {
+                consumeToken(); // 消耗右方括号
+                connectChildren(directDeclaratorNode, { createASTNode("Identifier", identifierValue) });
             }
             else {
-                // 错误处理：缺少右括号
-                std::cout << "Expected ')' after parameter list in declarator." << std::endl;
-                // 其他错误处理逻辑，例如抛出异常或采取适当的措施
-                return nullptr;
+                ASTNode* constantExpressionNode = constantExpression();
+                consumeToken(); // 消耗右方括号
+                connectChildren(directDeclaratorNode, { createASTNode("ArrayDeclarator", ""), createASTNode("Identifier", identifierValue), constantExpressionNode });
             }
         }
+        else if (getCurrentToken().type == TokenType::LEFT_PAREN) {
+            consumeToken(); // 消耗左括号
 
-        // 创建只包含标识符的声明符节点
-        ASTNode* declaratorNode = createASTNode("Declarator", identifierValue);
-        return declaratorNode;
+            if (getCurrentToken().type == TokenType::RIGHT_PAREN) {
+                consumeToken(); // 消耗右括号
+                connectChildren(directDeclaratorNode, { createASTNode("FunctionDeclarator", ""), createASTNode("Identifier", identifierValue), createASTNode("ParameterList", "") });
+            }
+            else {
+                ASTNode* parameterListNode = parameterList();
+                consumeToken(); // 消耗右括号
+                connectChildren(directDeclaratorNode, { createASTNode("FunctionDeclarator", ""), createASTNode("Identifier", identifierValue), parameterListNode });
+            }
+        }
+        else {
+            connectChildren(directDeclaratorNode, { createASTNode("Identifier", identifierValue) });
+        }
     }
     else {
         // 错误处理
-        std::cout << "Expected identifier in declarator." << std::endl;
-        // 其他错误处理逻辑，例如抛出异常或采取适当的措施
+        std::cout << "Expected identifier." << std::endl;
         return nullptr;
     }
+
+    while (getCurrentToken().type == TokenType::COMMA) {
+        consumeToken(); // 消耗逗号
+        std::string identifierValue = getCurrentToken().lexeme;
+        consumeToken(); // 消耗标识符
+        connectChildren(directDeclaratorNode, { createASTNode("Identifier", identifierValue) });
+    }
+
+    return directDeclaratorNode;
 }
+
+// 产生式规则：constant_expression ::= conditional_expression
+ASTNode* Parser::constantExpression() {
+    return conditionalExpression();
+}
+
 
 // 产生式规则：parameter_list -> '(' parameter_declaration ')'
 ASTNode* Parser::parameterList() {

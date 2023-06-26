@@ -35,7 +35,10 @@ newVector<Token> Lexer::lex() {
                     // TODO: Pointer
                 	else add_token(TokenType::MULTIPLY,"*");
                 break;
-            case '/': add_token(match('=') ? std::tuple(TokenType::DIVIDE_ASSIGN, "/=") : std::tuple(TokenType::DIVIDE, "/")); break;
+            case '/': if (match('=')) add_token(TokenType::DIVIDE_ASSIGN, " /= ");
+                    else if (match('/')) skip_comment();
+					else add_token(TokenType::DIVIDE, "/");
+                break;
             case '%': add_token(match('=') ? std::tuple(TokenType::MODULO_ASSIGN,"%=") : std::tuple(TokenType::MODULO, "%")); break;
             case '&': add_token(match('&') ? std::tuple(TokenType::LOGICAL_AND,"&&") : std::tuple(TokenType::BITWISE_AND,"&")); break;
             case '|': add_token(match('|') ? std::tuple(TokenType::LOGICAL_OR,"||") : std::tuple(TokenType::BITWISE_OR,"|")); break;
